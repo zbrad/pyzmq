@@ -33,10 +33,14 @@ version="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)"
 wheel="$(ls -t "${out}"/pyzmq-"${version}"-cp312-abi3-linux_"$(uname -m)".whl | head -1)"
 echo "wheel: $(basename "${wheel}")"
 
-uv run --no-project --python "${python}" --with abi3audit abi3audit --strict --report "${wheel}"
-
 # A fresh directory per run under the (gitignored) out dir; nothing is deleted.
 test_dir="$(mktemp -d "${out}/.test-lnx-$(uname -m)-XXXXXX")"
+
+# abi3audit in its own venv: `uv run --with` over a distro Python can import the distro's
+# dist-packages (seen on Ubuntu 24.04: python3-openssl's cryptography panics under 3.14).
+uv venv -q --python "${python}" "${test_dir}/audit"
+uv pip install -q --python "${test_dir}/audit/bin/python" abi3audit
+"${test_dir}/audit/bin/abi3audit" --strict --report "${wheel}"
 
 # No libzmq/libsodium shared library may be needed at run time: they are linked in statically.
 python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "${wheel}" "${test_dir}/whl"

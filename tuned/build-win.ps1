@@ -37,14 +37,20 @@ $wheel = Get-ChildItem $OutDir -Filter "pyzmq-$version-cp312-abi3-win*.whl" | So
 if (-not $wheel) { throw "no pyzmq-$version-cp312-abi3-win*.whl in $OutDir" }
 Write-Host "wheel: $($wheel.Name)"
 
-uv run --no-project --python $Python --with abi3audit abi3audit --strict --report $wheel.FullName
-if ($LASTEXITCODE) { throw 'abi3audit failed' }
-
-# tools/test_wheel.py in a clean venv, run from outside the source tree so it imports the installed wheel.
 # A fresh directory per run under the (gitignored) out dir; nothing is deleted.
 $testDir = Join-Path $OutDir ".test-win-$((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmss'))"
 $venv = Join-Path $testDir 'venv'
 New-Item -ItemType Directory $testDir | Out-Null
+
+# abi3audit in its own venv, as in tuned/build-lnx.sh (`uv run --with` can see a base interpreter's packages).
+$audit = Join-Path $testDir 'audit'
+uv venv --python $Python $audit
+uv pip install --python "$audit\Scripts\python.exe" abi3audit
+if ($LASTEXITCODE) { throw 'abi3audit install failed' }
+& "$audit\Scripts\abi3audit.exe" --strict --report $wheel.FullName
+if ($LASTEXITCODE) { throw 'abi3audit failed' }
+
+# tools/test_wheel.py in a clean venv, run from outside the source tree so it imports the installed wheel.
 uv venv --python $Python $venv
 uv pip install --python "$venv\Scripts\python.exe" $wheel.FullName pytest importlib_metadata
 if ($LASTEXITCODE) { throw 'test venv install failed' }

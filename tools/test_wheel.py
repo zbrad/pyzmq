@@ -20,12 +20,9 @@ except ImportError:
 def test_has(feature):
     import zmq
 
-    if feature == 'ipc' and sys.platform.startswith('win32'):
-        # IPC support is broken in enough cases on Windows
-        # that we can't ship wheels with it (for now)
-        assert not zmq.has(feature)
-    else:
-        assert zmq.has(feature)
+    # zbrad +ipc builds: ipc is on everywhere, Windows included (upstream's
+    # Windows wheels turn it off for pyzmq#1981; that is the point of this fork).
+    assert zmq.has(feature)
 
 
 def test_simple_socket():
